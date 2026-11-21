@@ -1,0 +1,38 @@
+
+services:
+  discovery-server:
+    build:
+      context: ../backend/discovery-server
+    image: discovery-server:1.0
+    ports:
+      - "8761:8761"
+    networks:
+      - reservation-network
+
+  config-server:
+    build:
+      context: ../backend/config-server
+    image: config-server:1.0
+    ports:
+      - "8888:8888"
+    networks:
+      - reservation-network
+
+  api-gateway:
+    build:
+      context: ../backend/api-gateway
+    image: api-gateway:1.0
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+    depends_on:
+      - discovery-server
+      - config-server
+    networks:
+      - reservation-network
+
+networks:
+  reservation-network:
+    driver: bridge
