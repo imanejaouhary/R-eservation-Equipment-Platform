@@ -46,6 +46,21 @@ services:
     networks:
       - reservation-network
 
+  user-service:
+    build:
+      context: ./backend/user-service
+    image: user-service:1.0
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+    depends_on:
+      - discovery-server
+      - config-server
+    networks:
+      - reservation-network
+
   reservation-service:
     build:
       context: ./backend/reservation-service
