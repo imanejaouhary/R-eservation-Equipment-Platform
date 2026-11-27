@@ -5,6 +5,12 @@ services:
     image: discovery-server:1.0
     ports:
       - "8761:8761"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -s http://localhost:8761/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
     networks:
       - reservation-network
 
@@ -14,6 +20,12 @@ services:
     image: config-server:1.0
     ports:
       - "8888:8888"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -s http://localhost:8888/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
     networks:
       - reservation-network
 
@@ -27,8 +39,10 @@ services:
       SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
     depends_on:
-      - discovery-server
-      - config-server
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
     networks:
       - reservation-network
 
@@ -42,8 +56,51 @@ services:
       SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
     depends_on:
-      - discovery-server
-      - config-server
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    networks:
+      - reservation-network
+
+  equipment-service:
+    build:
+      context: ./backend/equipment-service
+    image: equipment-service:1.0
+    ports:
+      - "8082:8082"
+    environment:
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-equipment_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-equipment_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env or environment}
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - reservation-network
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-equipment_db}
+      POSTGRES_USER: ${POSTGRES_USER:-equipment_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env or environment}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-equipment_user} -d ${POSTGRES_DB:-equipment_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - reservation-network
 
@@ -65,3 +122,6 @@ services:
 networks:
   reservation-network:
     driver: bridge
+
+volumes:
+  postgres-data:
